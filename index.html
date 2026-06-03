@@ -276,10 +276,15 @@
       const base64 = await fileToBase64(selectedFile);
       const mediaType = selectedFile.type;
 
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mediaType, writer: selectedWriter, mode: 'analyze' })
+      const params = new URLSearchParams({
+        action: 'analyze',
+        imageBase64: base64,
+        mediaType: mediaType,
+        writer: selectedWriter
+      });
+
+      const response = await fetch(SCRIPT_URL + '?' + params.toString(), {
+        method: 'GET'
       });
 
       const data = await response.json();
@@ -310,32 +315,36 @@
 
   async function saveToSheet() {
     showLoading('구글 시트에 저장 중...', '');
-    const payload = {
-      mode: 'save',
-      writer: selectedWriter,
-      data: {
-        date: document.getElementById('res-date').value,
-        category: document.getElementById('res-category').value,
-        detail: document.getElementById('res-detail').value,
-        type: document.getElementById('res-type').value,
-        amount: parseInt(document.getElementById('res-amount').value) || 0,
-        memo: document.getElementById('res-memo').value
-      }
+    const d = {
+      date: document.getElementById('res-date').value,
+      category: document.getElementById('res-category').value,
+      detail: document.getElementById('res-detail').value,
+      type: document.getElementById('res-type').value,
+      amount: parseInt(document.getElementById('res-amount').value) || 0,
+      memo: document.getElementById('res-memo').value
     };
 
     try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const params = new URLSearchParams({
+        action: 'save',
+        writer: selectedWriter,
+        date: d.date,
+        category: d.category,
+        detail: d.detail,
+        type: d.type,
+        amount: d.amount,
+        memo: d.memo
+      });
+
+      const response = await fetch(SCRIPT_URL + '?' + params.toString(), {
+        method: 'GET'
       });
       const data = await response.json();
       hideLoading();
 
       if (data.success) {
-        const d = payload.data;
         document.getElementById('success-detail').textContent =
-          `${d.date} · ${d.category} · ${Number(d.amount).toLocaleString()}원 (${selectedWriter})`;
+          d.date + ' · ' + d.category + ' · ' + Number(d.amount).toLocaleString() + '원 (' + selectedWriter + ')';
         document.getElementById('result-section').classList.add('hidden');
         document.getElementById('success-section').classList.remove('hidden');
         document.getElementById('success-section').scrollIntoView({ behavior: 'smooth' });
