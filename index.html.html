@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>가계부 영수증 스캔</title>
+<style>
+  :root {
+    --bg: #f5f3ef;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #888;
+    --accent: #2d5a3d;
+    --accent-light: #e8f0ea;
+    --accent-muted: #6a9b78;
+    --border: #e0ddd8;
+    --danger: #c0392b;
+    --warning-bg: #fef9ec;
+    --warning-border: #f0c040;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --card: #242422;
+      --text: #f0ece4;
+      --text-muted: #888;
+      --accent: #5a9e6f;
+      --accent-light: #1e2e22;
+      --accent-muted: #4a7e5a;
+      --border: #333330;
+      --warning-bg: #2a2510;
+      --warning-border: #a08020;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0 0 80px; }
+
+  .topbar { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; }
+  .topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .topbar p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .section { padding: 16px 16px 0; }
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+
+  /* 작성자 선택 */
+  .writer-row { display: flex; gap: 10px; }
+  .writer-btn { flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--text-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .writer-btn.active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+  /* 업로드 영역 */
+  .upload-area { background: var(--card); border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px 20px; text-align: center; cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden; }
+  .upload-area.has-image { border-style: solid; border-color: var(--accent); padding: 0; }
+  .upload-area:active { transform: scale(0.98); }
+  .upload-icon { font-size: 40px; margin-bottom: 10px; }
+  .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: var(--text-muted); }
+  .upload-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  #preview-img { width: 100%; border-radius: calc(var(--radius) - 2px); display: block; max-height: 320px; object-fit: contain; background: #f0ede8; }
+
+  /* 분석 결과 */
+  .result-card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+  .result-row { display: flex; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--border); gap: 12px; }
+  .result-row:last-child { border-bottom: none; }
+  .result-label { font-size: 12px; color: var(--text-muted); width: 60px; flex-shrink: 0; }
+  .result-value { font-size: 14px; font-weight: 500; flex: 1; }
+  .result-value input, .result-value select { width: 100%; border: none; background: transparent; color: var(--text); font-size: 14px; font-weight: 500; font-family: inherit; outline: none; }
+  .result-value.amount { color: var(--danger); font-size: 17px; font-weight: 700; }
+  .result-value.income { color: var(--accent); }
+
+  /* 카테고리 badge */
+  .cat-badge { display: inline-block; background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+  /* 버튼들 */
+  .btn-analyze { width: 100%; padding: 15px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; letter-spacing: -0.3px; }
+  .btn-analyze:active { transform: scale(0.97); }
+  .btn-analyze:disabled { background: #bbb; cursor: not-allowed; transform: none; }
+  .btn-save { width: 100%; padding: 15px; border-radius: var(--radius-sm); border: none; background: #1a1a1a; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn-save:disabled { background: #bbb; cursor: not-allowed; }
+  .btn-save:active { transform: scale(0.97); }
+  .btn-reset { width: 100%; padding: 13px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: transparent; color: var(--text-muted); font-size: 15px; cursor: pointer; margin-top: 8px; }
+
+  /* 로딩 */
+  .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 999; }
+  .loading-card { background: var(--card); border-radius: var(--radius); padding: 28px 32px; text-align: center; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; font-weight: 500; }
+  .loading-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* 성공 */
+  .success-banner { background: var(--accent-light); border: 1px solid var(--accent-muted); border-radius: var(--radius-sm); padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+  .success-icon { font-size: 22px; }
+  .success-text { font-size: 14px; font-weight: 600; color: var(--accent); }
+
+  /* 경고 */
+  .warning-box { background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12px; color: var(--text); line-height: 1.5; }
+  .warning-box strong { font-weight: 600; }
+
+  .hidden { display: none !important; }
+  .gap { height: 12px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🧾 가계부 스캔</h1>
+  <p>영수증 찍으면 자동으로 가계부에 기록돼요</p>
+</div>
+
+<!-- 설정 배너 -->
+<div class="section" id="config-warning" style="display:none">
+  <div class="gap"></div>
+  <div class="warning-box">
+    <strong>⚙️ 설정 필요</strong><br>
+    Apps Script 배포 후 아래 SCRIPT_URL을 실제 URL로 교체해주세요.<br>
+    Anthropic API 키도 Apps Script 코드에 입력 필요해요.
+  </div>
+</div>
+
+<!-- 작성자 선택 -->
+<div class="section">
+  <div class="gap"></div>
+  <div class="section-label">누가 쓸 건가요?</div>
+  <div class="writer-row">
+    <button class="writer-btn active" data-writer="나" onclick="selectWriter(this)">👨 나</button>
+    <button class="writer-btn" data-writer="와이프" onclick="selectWriter(this)">👩 와이프</button>
+  </div>
+</div>
+
+<!-- 영수증 업로드 -->
+<div class="section">
+  <div class="gap"></div>
+  <div class="section-label">영수증 사진</div>
+  <div id="upload-area">
+    <div style="display:flex; gap:10px;">
+      <label style="flex:1; background:var(--card); border:2px dashed var(--border); border-radius:var(--radius); padding:24px 10px; text-align:center; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; position:relative;">
+        <span style="font-size:32px;">📷</span>
+        <span style="font-size:14px; font-weight:600;">카메라 촬영</span>
+        <input type="file" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;" onchange="handleFileSelect(event)">
+      </label>
+      <label style="flex:1; background:var(--card); border:2px dashed var(--border); border-radius:var(--radius); padding:24px 10px; text-align:center; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; position:relative;">
+        <span style="font-size:32px;">🖼️</span>
+        <span style="font-size:14px; font-weight:600;">사진첩 선택</span>
+        <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;" onchange="handleFileSelect(event)">
+      </label>
+    </div>
+  </div>
+  <img id="preview-img" class="hidden" style="width:100%;border-radius:var(--radius);display:block;max-height:320px;object-fit:contain;background:#f0ede8;margin-top:10px;" alt="영수증 미리보기">
+</div>
+
+<!-- 분석 버튼 -->
+<div class="section" id="analyze-section" style="display:none">
+  <div class="gap"></div>
+  <button class="btn-analyze" id="analyze-btn" onclick="analyzeReceipt()">🤖 AI로 분석하기</button>
+</div>
+
+<!-- 분석 결과 -->
+<div class="section hidden" id="result-section">
+  <div class="gap"></div>
+  <div class="section-label">분석 결과 — 수정 가능해요</div>
+  <div class="result-card">
+    <div class="result-row">
+      <span class="result-label">날짜</span>
+      <span class="result-value"><input type="date" id="res-date"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">분류</span>
+      <span class="result-value">
+        <select id="res-category">
+          <optgroup label="지출">
+            <option>식비</option><option>주유비</option><option>교통비</option>
+            <option>의료비</option><option>교육비</option><option>문화여가</option>
+            <option>의류미용</option><option>통신비</option><option>대출상환</option><option>기타지출</option>
+          </optgroup>
+          <optgroup label="수입">
+            <option>급여</option><option>부수입</option><option>기타수입</option>
+          </optgroup>
+          <optgroup label="저축/투자">
+            <option>저축</option><option>주식</option><option>하늘이주식</option>
+          </optgroup>
+        </select>
+      </span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">세부내용</span>
+      <span class="result-value"><input type="text" id="res-detail" placeholder="가게명 등"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">유형</span>
+      <span class="result-value">
+        <select id="res-type">
+          <option value="지출">지출</option>
+          <option value="수입">수입</option>
+          <option value="저축">저축</option>
+          <option value="투자">투자</option>
+        </select>
+      </span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">금액</span>
+      <span class="result-value amount"><input type="number" id="res-amount" placeholder="0" style="color: var(--danger); font-size:17px; font-weight:700;"></span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">메모</span>
+      <span class="result-value"><input type="text" id="res-memo" placeholder="선택사항"></span>
+    </div>
+  </div>
+  <div class="gap"></div>
+  <button class="btn-save" id="save-btn" onclick="saveToSheet()">📊 구글 시트에 저장</button>
+  <button class="btn-reset" onclick="resetAll()">다시 찍기</button>
+</div>
+
+<!-- 성공 -->
+<div class="section hidden" id="success-section">
+  <div class="gap"></div>
+  <div class="success-banner">
+    <span class="success-icon">✅</span>
+    <div>
+      <div class="success-text">가계부에 저장됐어요!</div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:2px;" id="success-detail"></div>
+    </div>
+  </div>
+  <div class="gap"></div>
+  <button class="btn-analyze" onclick="resetAll()">+ 다음 영수증 추가</button>
+</div>
+
+<!-- 로딩 -->
+<div class="loading-overlay hidden" id="loading">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">AI가 영수증 분석 중...</div>
+    <div class="loading-sub" id="loading-sub">잠시만 기다려 주세요</div>
+  </div>
+</div>
+
+<script>
+  // ⚠️ Apps Script 배포 후 아래 URL을 실제 URL로 교체하세요
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuwvPrsHsSi1LrSAq22eiYdz-V5QmeDj1YGPana-W4pnFoFTBx7mAWb5rNwMXi5eWkqA/exec";
+
+  let selectedWriter = "나";
+  let selectedFile = null;
+  let analysisResult = null;
+
+  function selectWriter(btn) {
+    document.querySelectorAll('.writer-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedWriter = btn.dataset.writer;
+  }
+
+  function handleFileSelect(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    selectedFile = file;
+
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = document.getElementById('preview-img');
+      img.src = ev.target.result;
+      img.classList.remove('hidden');
+
+      document.getElementById('analyze-section').style.display = 'block';
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('success-section').classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyzeReceipt() {
+    if (!selectedFile) return;
+    showLoading('AI가 영수증 분석 중...', '잠시만 기다려 주세요');
+
+    try {
+      const base64 = await fileToBase64(selectedFile);
+      const mediaType = selectedFile.type;
+
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mediaType, writer: selectedWriter, mode: 'analyze' })
+      });
+
+      const data = await response.json();
+      hideLoading();
+
+      if (data.success) {
+        analysisResult = data.data;
+        fillResult(data.data);
+        document.getElementById('result-section').classList.remove('hidden');
+        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        alert('분석 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (err) {
+      hideLoading();
+      alert('오류 발생: ' + err.message);
+    }
+  }
+
+  function fillResult(data) {
+    document.getElementById('res-date').value = data.date || getTodayStr();
+    document.getElementById('res-category').value = data.category || '식비';
+    document.getElementById('res-detail').value = data.detail || '';
+    document.getElementById('res-type').value = data.type || '지출';
+    document.getElementById('res-amount').value = data.amount || '';
+    document.getElementById('res-memo').value = data.memo || '';
+  }
+
+  async function saveToSheet() {
+    showLoading('구글 시트에 저장 중...', '');
+    const payload = {
+      mode: 'save',
+      writer: selectedWriter,
+      data: {
+        date: document.getElementById('res-date').value,
+        category: document.getElementById('res-category').value,
+        detail: document.getElementById('res-detail').value,
+        type: document.getElementById('res-type').value,
+        amount: parseInt(document.getElementById('res-amount').value) || 0,
+        memo: document.getElementById('res-memo').value
+      }
+    };
+
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      hideLoading();
+
+      if (data.success) {
+        const d = payload.data;
+        document.getElementById('success-detail').textContent =
+          `${d.date} · ${d.category} · ${Number(d.amount).toLocaleString()}원 (${selectedWriter})`;
+        document.getElementById('result-section').classList.add('hidden');
+        document.getElementById('success-section').classList.remove('hidden');
+        document.getElementById('success-section').scrollIntoView({ behavior: 'smooth' });
+      } else {
+        alert('저장 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (err) {
+      hideLoading();
+      alert('저장 오류: ' + err.message);
+    }
+  }
+
+  function resetAll() {
+    selectedFile = null;
+    analysisResult = null;
+
+    document.getElementById('preview-img').classList.add('hidden');
+    document.getElementById('analyze-section').style.display = 'none';
+    document.getElementById('result-section').classList.add('hidden');
+    document.getElementById('success-section').classList.add('hidden');
+
+    document.querySelectorAll('#upload-area input[type=file]').forEach(function(i){ i.value=''; });
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function getTodayStr() {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+  }
+
+  function showLoading(text, sub) {
+    document.getElementById('loading-text').textContent = text;
+    document.getElementById('loading-sub').textContent = sub;
+    document.getElementById('loading').classList.remove('hidden');
+  }
+
+  function hideLoading() {
+    document.getElementById('loading').classList.add('hidden');
+  }
+</script>
+</body>
+</html>
