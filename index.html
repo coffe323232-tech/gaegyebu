@@ -251,21 +251,15 @@
   }
 
   function handleFileSelect(e) {
-    const file = e.target.files[0];
+    var file = e.target.files[0];
     if (!file) return;
     selectedFile = file;
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = document.getElementById('preview-img');
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = document.getElementById('preview-img');
       img.src = ev.target.result;
       img.classList.remove('hidden');
-
-      const area = document.getElementById('upload-area');
-      area.classList.add('has-image');
-      area.querySelector('.upload-icon').style.display = 'none';
-      area.querySelector('.upload-title').style.display = 'none';
-      area.querySelector('.upload-sub').style.display = 'none';
 
       document.getElementById('analyze-section').style.display = 'block';
       document.getElementById('result-section').classList.add('hidden');
